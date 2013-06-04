@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * @file form_translation.module
+ * Contain all functionality for main form.
+ */
+
+
+function form_translation_menu() {
+  $items['translation_form'] = array(
+      'title' => t('Translation form'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('translateok_main_form'),
+      'access callback' => TRUE,
+      'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function translateok_main_form($form, $form_state){
+  $original_languages = array(''=>'Choose one','es' => t('Spanish'),'en' => t('English'));
+  $form['original_language'] = array(
+       '#type' => 'select',
+       '#title' => t('Translation from'),
+       '#options' => $original_languages,
+  );
+  $form['destination_languages'] = array(
+       '#type' => 'select',
+       '#title' => t('Translation to'),
+       '#options' => $original_languages,
+       '#required' => TRUE
+  );
+  $form['selected'] = array(
+       '#type' => 'radios',
+       '#title' => t('Translation express?'),
+       '#options' => array(
+          0 => t('No'),
+          1 => t('Yes'),
+       ),
+       '#default_value' => 0,
+       '#required' => TRUE,
+       '#description' => t('Set this to <em>Yes</em> if you would like this express service.'),
+  );
+  $form['text'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Input text'),
+      '#required' => TRUE,
+      '#ajax' => array(
+          'callback' => 'count_words_js',
+          'wrapper' => 'count_words',
+          'method' => 'replace',
+          'effect' => 'fade',
+          'keypress' => TRUE,
+        ),
+      '#suffix' => '<div class="count_words" id="count_words"></div>'
+  );
+  $form['next'] = array(
+      '#type' => 'submit',
+      '#value' => t('Next'),
+  );
+  return $form;
+}
+function count_words_js($form, $form_state) {
+  if (!empty($form_state['input']['text'])){
+    $words = $form_state['input']['text'];
+    $array = explode(" ", $words);
+    return $form['algo'] = array(
+         '#markup' => t('Number of words: '.count($array))
+    );
+  }
+}
+function translateok_main_form_validate($form, &$form_state){
+  
+}
+function translateok_main_form_submit($form, $form_state){
+  $words = $form_state['input']['text'];
+  $array = explode(" ", $words);
+  global $user;
+  
+  $product = commerce_product_load(1);
+
+  $order = ($user->uid) ? commerce_order_new($user->uid, 'checkout_checkout') : commerce_cart_order_new();
+
+  $line_item = commerce_product_line_item_new($product, count($array), $order->order_id);
+
+  commerce_line_item_save($line_item);
+
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+
+  $order_wrapper->commerce_line_items[] = $line_item;
+
+  $order->data['text'] = $form_state['input']['text'];
+
+  commerce_order_save($order);
+
+  drupal_goto('checkout/' . $order->order_id);
+}
+
